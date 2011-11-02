@@ -1,8 +1,8 @@
-#include "json.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <array.h>
+#include <assert.h>
+#include "json.h"
 
 struct json_parser
 {
@@ -12,14 +12,15 @@ struct json_parser
     char* position;
 };
 
-struct json_parser* json_parser_create(const char* source)
-{
-    struct json_parser* parser = malloc(sizeof(struct json_parser));
-    parser->source = strdup(source);
-    parser->position = parser->source;
-    return NULL;
-}
+static struct json_value* json_parse_value(struct json_parser* parser);
 
+struct json_value* json_parse(const char* source)
+{
+    struct json_parser parser;
+    parser.source = strdup(source);
+    parser.position = parser.source;
+    return json_parse_value(&parser);
+}
 
 enum
 {
@@ -33,18 +34,38 @@ enum
 
 struct json_array
 {
+    size_t capacity;
     size_t length;
     struct json_value** data;
 };
 
+
+struct json_object_element
+{
+    const char* key;
+    struct json_value* value;
+    struct json_object_element* next;
+};
+
+struct json_object
+{
+    size_t count;
+    size_t mask;
+    struct json_object_element** data;
+};
+
 struct json_value
 {
+    struct json_parser* parent;
+    char* source;
+    
     int type;
     
     union {
         const char* string;
         int boolean;
         struct json_array array;
+        struct json_object object;
     } data;
 };
 
@@ -56,6 +77,38 @@ static struct json_value* json_value_create(int type)
 }
 
 
+static size_t max(size_t a, size_t b)
+{
+    return a > b ? a : b;
+}
+
+
+static void json_array_append(struct json_value* array, struct json_value* element)
+{
+    assert(array->type == JSON_TYPE_ARRAY);
+    if (array->data.array.capacity == array->data.array.length)
+    {
+        // Grow
+        array->data.array.capacity = max(1, 2 * array->data.array.capacity);
+        array->data.array.data = realloc(array->data.array.data, sizeof(struct json_value*) * array->data.array.capacity);
+    }
+    
+    array->data.array.data[array->data.array.length] = element;
+    array->data.array.length++;
+}
+
+
+static void json_object_insert(struct json_object* object, const char* key, struct json_value* element)
+{
+    if(object->count == object->mask)
+    {
+        // grow
+    }
+    
+    
+
+}
+
 static int skip(struct json_parser* parser, char c)
 {
     parser->position++;
@@ -66,24 +119,62 @@ static int skip(struct json_parser* parser, char c)
 static void json_parse_array_tail(struct json_parser* parser, struct json_value* array)
 {
     assert(array->type == JSON_TYPE_ARRAY);
-    switch(*parser->position)
+    for (;;) switch(*parser->position)
     {
         case ']':
+        {
+            // Skip, accept
+            parser->position++;
             return;
+        }
+
+        default:
+        {
+            struct json_value* element = json_parse_value(parser);
+            if (!element)
+            {
+                // error
+                return;
+            }
+            
+            json_array_append(array, element);
+                
+            if (!skip(parser, ','))
+            {
+                // error
+                return;
+            }
+        }
     }
+}
+
+static void json_parse_object_tail(struct json_parser* parser, struct json_value* object)
+{
 }
 
 static struct json_value* json_parse_value(struct json_parser* parser)
 {
     switch(*parser->position)
     {
+        case '{':
+        {
+            parser->position++;
+            struct json_value* value = json_value_create(JSON_TYPE_OBJECT);
+            value->data.array.data     = 0;
+            value->data.array.capacity = 0;
+            value->data.array.length   = 0;
+            json_parse_object_tail(parser, value);
+            return value;
+        }
         case '[':
         {
             parser->position++;
             struct json_value* value = json_value_create(JSON_TYPE_ARRAY);
-            value->data.array.data = 0;
-            value->data.array.length = 0;
-            return json_parse_array_tail(parser);
+            value->data.array.data     = 0;
+            value->data.array.capacity = 0;
+            value->data.array.length   = 0;
+            json_parse_array_tail(parser, value);
+            return value;
         }
             
         // String
@@ -124,13 +215,22 @@ static struct json_value* json_parse_value(struct json_parser* parser)
                 return value;
             }
         }
+            
+        case 'n':
+        {
+            if (skip(parser, 'u') && 
+                skip(parser, 'l') &&
+                skip(parser, 'l'))
+            {
+                struct json_value* value = json_value_create(JSON_TYPE_NULL);
+                return value;
+            }
+        }
     }
     
     return NULL;
 }
 
-void json_parser_destroy(struct json_parser* parser)
+void json_destroy(struct json_value* value)
 {
-    free(parser->source);
-    free(parser);
 }
