@@ -2,8 +2,8 @@
 
 int main (int argc, const char * argv[])
 {
-    struct json_parser* parser = json_parser_create();
-    json_parser_destroy(parser);
+    struct json_value* value = json_parse("test");
+    json_destroy(value);
     return 0;
 }
 

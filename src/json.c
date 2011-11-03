@@ -39,19 +39,12 @@ struct json_array
     struct json_value** data;
 };
 
-
-struct json_object_element
+// Linked list
+struct json_object
 {
     const char* key;
     struct json_value* value;
-    struct json_object_element* next;
-};
-
-struct json_object
-{
-    size_t count;
-    size_t mask;
-    struct json_object_element** data;
+    struct json_object* next;
 };
 
 struct json_value
@@ -65,7 +58,7 @@ struct json_value
         const char* string;
         int boolean;
         struct json_array array;
-        struct json_object object;
+        struct json_object* object;
     } data;
 };
 
@@ -82,31 +75,27 @@ static size_t max(size_t a, size_t b)
     return a > b ? a : b;
 }
 
-
-static void json_array_append(struct json_value* array, struct json_value* element)
+static void json_array_append(struct json_array* array, struct json_value* element)
 {
-    assert(array->type == JSON_TYPE_ARRAY);
-    if (array->data.array.capacity == array->data.array.length)
+    if (array->capacity == array->length)
     {
         // Grow
-        array->data.array.capacity = max(1, 2 * array->data.array.capacity);
-        array->data.array.data = realloc(array->data.array.data, sizeof(struct json_value*) * array->data.array.capacity);
+        array->capacity = max(1, 2 * array->capacity);
+        array->data = realloc(array->data, sizeof(struct json_value*) * array->capacity);
     }
     
-    array->data.array.data[array->data.array.length] = element;
-    array->data.array.length++;
+    array->data[array->length] = element;
+    array->length++;
 }
 
 
-static void json_object_insert(struct json_object* object, const char* key, struct json_value* element)
+static void json_object_insert(struct json_value* object, const char* key, struct json_value* element)
 {
-    if(object->count == object->mask)
-    {
-        // grow
-    }
-    
-    
-
+    struct json_object* o = malloc(sizeof(struct json_object));
+    o->key = key;
+    o->value = element;
+    o->next = object->data.object;
+    object->data.object = o;
 }
 
 static int skip(struct json_parser* parser, char c)
@@ -137,7 +126,7 @@ static void json_parse_array_tail(struct json_parser* parser, struct json_value*
                 return;
             }
             
-            json_array_append(array, element);
+            json_array_append(&array->data.array, element);
                 
             if (!skip(parser, ','))
             {
@@ -150,6 +139,16 @@ static void json_parse_array_tail(struct json_parser* parser, struct json_value*
 
 static void json_parse_object_tail(struct json_parser* parser, struct json_value* object)
 {
+    
+    for (;;)
+    {
+        switch (*parser->position)
+        {
+            case '"':
+            default:
+                // error
+        }
+    }    
 }
 
 static struct json_value* json_parse_value(struct json_parser* parser)
