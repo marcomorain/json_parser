@@ -97,6 +97,7 @@
 		4944567E14571D7200F2A972 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
+				LastUpgradeCheck = 0420;
 				ORGANIZATIONNAME = "Marc O'Morain";
 			};
 			buildConfigurationList = 4944568114571D7200F2A972 /* Build configuration list for PBXProject "json_parser" */;
