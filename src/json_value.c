@@ -4,36 +4,7 @@
 #include <string.h>
 #include <assert.h>
 #include "json.h"
-
-struct json_parser
-{
-    struct json_callbacks* callbacks;    
-    // A full duplicate of the source string.
-    // This can be mutated as needed.
-    char* source;
-    char* position;
-    jmp_buf* buffer;
-
-};
-
-static struct json_value* json_parse_value(struct json_parser* parser);
-
-struct json_value* json_parse(const char* source, struct json_callbacks* callbacks)
-{
-    struct json_parser parser;
-    parser.callbacks = callbacks;
-    parser.source = strdup(source);
-    parser.position = parser.source;
-    
-    jmp_buf buffer; parser.buffer = &buffer;
-    if (setjmp(buffer))
-    {
-        // Error
-        return NULL;
-    }
-    return json_parse_value(&parser);
-}
-
+/*
 enum
 {
     JSON_TYPE_NULL,
@@ -262,3 +233,4 @@ static struct json_value* json_parse_value(struct json_parser* parser)
 void json_destroy(struct json_value* value)
 {
 }
+*/

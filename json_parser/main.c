@@ -1,12 +1,11 @@
 #include "../src/json.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 static void do_file(const char* file_name)
 {
     FILE* file = fopen(file_name, "r");
     
-
-    char * buffer;
     size_t result;
     
 
@@ -27,22 +26,25 @@ static void do_file(const char* file_name)
     if (buffer == NULL) {fputs ("Memory error",stderr); exit (2);}
     
     // copy the file into the buffer:
-    result = fread (buffer,1,lSize,pFile);
-    if (result != lSize) {fputs ("Reading error",stderr); exit (3);}
+    result = fread (buffer, 1, length, file);
+    if (result != length) {fputs ("Reading error", stderr); exit (3);}
     
     /* the whole file is now loaded in the memory buffer. */
     
     // terminate
-    fclose (pFile);
+    fclose (file);
     free (buffer);
-    return 0;
-    
 }
 
 int main (int argc, const char * argv[])
 {
-    struct json_value* value = json_parse("test");
-    json_destroy(value);
+    struct json_callbacks callbacks;
+    json_callbacks_init(&callbacks);
+    json_parse("true", &callbacks);
+    json_parse("false", &callbacks);
+    json_parse("[]", &callbacks);
+    json_parse("[true]", &callbacks);
+    json_parse("[true, false]", &callbacks);
     return 0;
 }
 
