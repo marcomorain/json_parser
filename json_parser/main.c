@@ -40,10 +40,11 @@ int main (int argc, const char * argv[])
 {
     struct json_callbacks callbacks;
     json_callbacks_init(&callbacks);
+    json_parse("[true]", &callbacks);
     json_parse("true", &callbacks);
     json_parse("false", &callbacks);
     json_parse("[]", &callbacks);
-    json_parse("[true]", &callbacks);
+
     json_parse("[true, false]", &callbacks);
     return 0;
 }

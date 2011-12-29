@@ -67,6 +67,7 @@ void json_callbacks_init(struct json_callbacks* callbacks)
     callbacks->on_null = on_null;
     callbacks->on_number = on_number;
     callbacks->on_string = on_string;
+    callbacks->on_error = on_error;
 }
 
 static int json_parse_value(struct json_parser* parser);
@@ -115,11 +116,12 @@ static void skip_white_space(struct json_parser* parser)
 
 static void skip_char(struct json_parser* parser, json_char c)
 {
-    skip(parser);
+    fprintf(stderr, "Skipping %c\n", c);
     if (c != peek(parser))
     {
         longjmp(*parser->buffer, c);
     }
+    skip(parser);
 }
 
 
@@ -338,7 +340,11 @@ static int json_parse_object_tail(struct json_parser* parser)
 
 static void skip_string(struct json_parser* parser, const json_char* s)
 {
-    for (json_char c = *s; (c = *s); s++) skip_char(parser, c);
+    while (*s)
+    {
+        skip_char(parser, *s);
+        s++;
+    }
 }
 
 static int json_parse_value(struct json_parser* parser)
@@ -366,7 +372,7 @@ static int json_parse_value(struct json_parser* parser)
         // True
         case 't':
         {
-            skip_string(parser, "rue");
+            skip_string(parser, "true");
             parser->callbacks->on_boolean(1);
             return JSON_PARSE_SUCCESS;
         }
@@ -374,14 +380,14 @@ static int json_parse_value(struct json_parser* parser)
         // False
         case 'f':
         {
-            skip_string(parser, "alse");
+            skip_string(parser, "false");
             parser->callbacks->on_boolean(0);
             return JSON_PARSE_SUCCESS;
         }
             
         case 'n':
         {
-            skip_string(parser, "ull");
+            skip_string(parser, "null");
             parser->callbacks->on_null();
             return JSON_PARSE_SUCCESS;
         }
