@@ -7,18 +7,21 @@
 
 struct json_parser
 {
+    struct json_callbacks* callbacks;    
     // A full duplicate of the source string.
     // This can be mutated as needed.
     char* source;
     char* position;
     jmp_buf* buffer;
+
 };
 
-static struct json_value* json_parse_value(struct json_parser* parser);
+static int json_parse_value(struct json_parser* parser);
 
-struct json_value* json_parse(const char* source)
+int json_parse(const char* source, struct json_callbacks* callbacks)
 {
     struct json_parser parser;
+    parser.callbacks = callbacks;
     parser.source = strdup(source);
     parser.position = parser.source;
     
@@ -31,80 +34,10 @@ struct json_value* json_parse(const char* source)
     return json_parse_value(&parser);
 }
 
-enum
-{
-    JSON_TYPE_NULL,
-    JSON_TYPE_BOOLEAN,
-    JSON_TYPE_NUMBER,
-    JSON_TYPE_ARRAY,
-    JSON_TYPE_STRING,
-    JSON_TYPE_OBJECT,
-};
-
-struct json_array
-{
-    size_t capacity;
-    size_t length;
-    struct json_value** data;
-};
-
-// Linked list
-struct json_object
-{
-    struct json_value* key;
-    struct json_value* value;
-    struct json_object* next;
-};
-
-struct json_value
-{
-    struct json_parser* parent;
-    char* source;
-    
-    int type;
-    
-    union {
-        const char* string;
-        int boolean;
-        struct json_array array;
-        struct json_object* object;
-    } data;
-};
-
-static struct json_value* json_value_create(int type)
-{
-    struct json_value* value = malloc(sizeof(struct json_value));
-    value->type = type;
-    return value;
-}
-
 
 static size_t max(size_t a, size_t b)
 {
     return a > b ? a : b;
-}
-
-static void json_array_append(struct json_array* array, struct json_value* element)
-{
-    if (array->capacity == array->length)
-    {
-        // Grow
-        array->capacity = max(1, 2 * array->capacity);
-        array->data = realloc(array->data, sizeof(struct json_value*) * array->capacity);
-    }
-    
-    array->data[array->length] = element;
-    array->length++;
-}
-
-
-static void json_object_insert(struct json_value* object, struct json_value* key, struct json_value* value)
-{
-    struct json_object* o = malloc(sizeof(struct json_object));
-    o->key = key;
-    o->value = value;
-    o->next = object->data.object;
-    object->data.object = o;
 }
 
 static int is_white_space(const char c)
@@ -130,40 +63,101 @@ static void skip(struct json_parser* parser, char c)
 }
 
 
-static void json_parse_array_tail(struct json_parser* parser, struct json_value* array)
+static int json_parse_array_tail(struct json_parser* parser)
 {
-    assert(array->type == JSON_TYPE_ARRAY);
     for (;;) switch(*parser->position)
     {
         case ']':
         {
             // Skip, accept
             parser->position++;
-            return;
+            return JSON_PARSE_SUCCESS;
         }
 
         default:
         {
-            json_array_append(&array->data.array, json_parse_value(parser));                
+            json_parse_value(parser);
             skip(parser, ',');
         }
     }
 }
 
-
-static struct json_value* json_parse_string_tail(struct json_parser* parser)
+enum { CHARACTER_BUFFER_STACK_MAX = 64 };
+struct character_buffer
 {
-    struct json_value* value = json_value_create(JSON_TYPE_STRING);
-    value->data.string = parser->position;
-    while(*parser->position != '"') parser->position++;
-    *parser->position = 0;
-    parser->position++;
-    return value;
+    char stack_storage[CHARACTER_BUFFER_STACK_MAX];
+    char* heap_storage;
+    size_t capacity;
+    size_t used;
+
+};
+
+static void character_buffer_init(struct character_buffer* buffer)
+{
+    buffer->capacity = CHARACTER_BUFFER_STACK_MAX;
+    buffer->used = 0;
+    buffer->heap_storage = NULL;
 }
 
-static void json_parse_object_tail(struct json_parser* parser, struct json_value* object)
+static void character_buffer_destroy(struct character_buffer* buffer)
 {
+    free(buffer->heap_storage);
+    buffer->capacity = 0;
+    buffer->used = 0;
+}
+
+static int character_buffer_push_heap(struct character_buffer* buffer, char c)
+{
+    assert(buffer->heap_storage);
+
+    if (buffer->used == buffer->capacity)
+    {
+        buffer->capacity = 2 * buffer->capacity;
+        buffer->heap_storage = realloc(buffer->heap_storage, buffer->capacity);
+        if(!buffer->heap_storage) return 0;
+    }
+    buffer->heap_storage[buffer->used] = c;
+    buffer->used++;
+    return 1;
+}
+
+static int character_buffer_push(struct character_buffer* buffer, char c)
+{
+    if (buffer->heap_storage)
+    {
+        return character_buffer_push_heap(buffer, c);
+    }
     
+    if (buffer->used == buffer->capacity)
+    {
+        buffer->capacity = 2 * buffer->capacity;
+        buffer->heap_storage = malloc(buffer->capacity);
+        if(!buffer->heap_storage) return 0;
+        memccpy(buffer->heap_storage, buffer->stack_storage, 1, CHARACTER_BUFFER_STACK_MAX);
+        return character_buffer_push_heap(buffer, c);
+    }
+    
+    buffer->stack_storage[buffer->used] = c;
+    buffer->used++;
+    return 1;
+}
+
+static const char* character_buffer_get(const struct character_buffer* buffer)
+{
+    return buffer->heap_storage ? buffer->heap_storage : buffer->stack_storage;
+}
+
+static int json_parse_string_tail(struct json_parser* parser)
+{
+    // string starts at parser->position;
+    while(*parser->position != '"') parser->position++;
+    // old code to set a null *parser->position = 0;
+    parser->position++;
+    return JSON_PARSE_SUCCESS;
+}
+
+static int json_parse_object_tail(struct json_parser* parser)
+{
     for (;;)
     {
         skip_white_space(parser);
@@ -173,20 +167,27 @@ static void json_parse_object_tail(struct json_parser* parser, struct json_value
             // Finished when we reach the final closing brace
             case '}':
                 parser->position++;
-                return;
+                return JSON_PARSE_SUCCESS;
                 
             case '"':
+                
+                // Key
                 parser->position++;
-                struct json_value* key = json_parse_string_tail(parser);
+                json_parse_string_tail(parser);
+                
+                // Sep
                 skip_white_space(parser);
                 skip(parser, ':');
-                struct json_value* value = json_parse_value(parser);
-                json_object_insert(object, key, value);
+                
+                // Value
+                json_parse_value(parser);
+                
+                
+                // Comma?
                 break;
                 
             default:
-                break;
-                // error
+                return JSON_PARSE_FAIL;
         }
     }    
 }
@@ -196,29 +197,19 @@ static void skip_string(struct json_parser* parser, const char* s)
     for (char c = *s; (c = *s); s++) skip(parser, c);
 }
 
-static struct json_value* json_parse_value(struct json_parser* parser)
+static int json_parse_value(struct json_parser* parser)
 {
     switch(*parser->position)
     {
         case '{':
         {
             parser->position++;
-            struct json_value* value = json_value_create(JSON_TYPE_OBJECT);
-            value->data.array.data     = 0;
-            value->data.array.capacity = 0;
-            value->data.array.length   = 0;
-            json_parse_object_tail(parser, value);
-            return value;
+            return json_parse_object_tail(parser);
         }
         case '[':
         {
             parser->position++;
-            struct json_value* value = json_value_create(JSON_TYPE_ARRAY);
-            value->data.array.data     = 0;
-            value->data.array.capacity = 0;
-            value->data.array.length   = 0;
-            json_parse_array_tail(parser, value);
-            return value;
+            return json_parse_array_tail(parser);
         }
             
         // String
@@ -232,30 +223,26 @@ static struct json_value* json_parse_value(struct json_parser* parser)
         case 't':
         {
             skip_string(parser, "rue");
-            struct json_value* value = json_value_create(JSON_TYPE_BOOLEAN);
-            value->data.boolean = 1;
-            return value;
+            parser->callbacks->on_boolean(1);
+            return JSON_PARSE_SUCCESS;
         }
             
         // False
         case 'f':
         {
             skip_string(parser, "alse");
-            struct json_value* value = json_value_create(JSON_TYPE_BOOLEAN);
-            value->data.boolean = 0;
-            return value;
+            parser->callbacks->on_boolean(0);
+            return JSON_PARSE_SUCCESS;
         }
             
         case 'n':
         {
             skip_string(parser, "ull");
-            return json_value_create(JSON_TYPE_NULL);
+            parser->callbacks->on_null();
+            return JSON_PARSE_SUCCESS;
         }
     }
     
-    return NULL;
+    return JSON_PARSE_FAIL;
 }
 
-void json_destroy(struct json_value* value)
-{
-}

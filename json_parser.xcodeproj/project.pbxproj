@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		493C74AC14AC82A10068E8CF /* json_value.c in Sources */ = {isa = PBXBuildFile; fileRef = 493C74AB14AC82A10068E8CF /* json_value.c */; };
 		4944568C14571D7200F2A972 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 4944568B14571D7200F2A972 /* main.c */; };
 		4944568E14571D7200F2A972 /* json_parser.1 in CopyFiles */ = {isa = PBXBuildFile; fileRef = 4944568D14571D7200F2A972 /* json_parser.1 */; };
 		49B91BDC14571DED004CFFF2 /* json.c in Sources */ = {isa = PBXBuildFile; fileRef = 49B91BDA14571DED004CFFF2 /* json.c */; };
@@ -26,6 +27,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		493C74AB14AC82A10068E8CF /* json_value.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = json_value.c; path = src/json_value.c; sourceTree = SOURCE_ROOT; };
 		4944568714571D7200F2A972 /* json_parser */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = json_parser; sourceTree = BUILT_PRODUCTS_DIR; };
 		4944568B14571D7200F2A972 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
 		4944568D14571D7200F2A972 /* json_parser.1 */ = {isa = PBXFileReference; lastKnownFileType = text.man; path = json_parser.1; sourceTree = "<group>"; };
@@ -63,6 +65,7 @@
 		4944568A14571D7200F2A972 /* json_parser */ = {
 			isa = PBXGroup;
 			children = (
+				493C74AB14AC82A10068E8CF /* json_value.c */,
 				49B91BDA14571DED004CFFF2 /* json.c */,
 				49B91BDB14571DED004CFFF2 /* json.h */,
 				4944568B14571D7200F2A972 /* main.c */,
@@ -124,6 +127,7 @@
 			files = (
 				4944568C14571D7200F2A972 /* main.c in Sources */,
 				49B91BDC14571DED004CFFF2 /* json.c in Sources */,
+				493C74AC14AC82A10068E8CF /* json_value.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
